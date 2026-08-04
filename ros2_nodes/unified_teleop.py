@@ -103,7 +103,8 @@ PLATFORM_KEYS = {
     'x': 'stop',    # halts raise/lower motion (send after r or f)
 }
 
-ACTUATOR_KEY = 'e'   # triggers full self-timed actuator cycle
+EXTEND_KEY = 'e'
+RETRACT_KEY = 'd'
 
 SPEED_UP_KEY = 'q'
 SPEED_DOWN_KEY = 'z'
@@ -129,7 +130,8 @@ Tilt / level (front motor, axis 0 only):
   g           level
 
 Actuator:
-  e           trigger actuator cycle (self-timed, no stop needed)
+  e           extend actuator
+  d           retract actuator
 
 CTRL-C to quit (sends stop everywhere first)
 """
@@ -219,15 +221,29 @@ def send_platform_command(command):
         print(f"  [!] platform command error: {e}")
 
 
-def send_actuator_command():
+def send_extend_command():
     def _run():
         try:
             s = socket.socket()
-            s.settimeout(10)  # actuator cycle takes several seconds
+            s.settimeout(5)
             s.connect((ACTUATOR_HOST, ACTUATOR_PORT))
-            s.send(b"actuator")
+            s.send(b"EXTEND")
             s.close()
-            print("  [actuator] cycle triggered")
+            print("  [actuator] extend sent")
+        except Exception as e:
+            print(f"  [!] actuator error: {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def send_retract_command():
+    def _run():
+        try:
+            s = socket.socket()
+            s.settimeout(5)
+            s.connect((ACTUATOR_HOST, ACTUATOR_PORT))
+            s.send(b"RETRACT")
+            s.close()
+            print("  [actuator] retract sent")
         except Exception as e:
             print(f"  [!] actuator error: {e}")
     threading.Thread(target=_run, daemon=True).start()
@@ -268,8 +284,11 @@ def main():
             elif key in PLATFORM_KEYS:
                 send_platform_command(PLATFORM_KEYS[key])
 
-            elif key == ACTUATOR_KEY:
-                send_actuator_command()
+            elif key == EXTEND_KEY:
+                send_extend_command()
+
+            elif key == RETRACT_KEY:
+                send_retract_command()
 
             elif key == SPEED_UP_KEY:
                 linear_speed *= 1.1
