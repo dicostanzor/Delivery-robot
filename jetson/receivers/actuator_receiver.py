@@ -1,7 +1,10 @@
 # actuator_receiver.py
 # Runs on the Jetson Orin NX
-# Listens for actuator trigger commands from the Pi on port 5006
-# On trigger, runs the full timed actuator cycle using Jetson GPIO
+# Listens for actuator commands from the Pi on port 5006
+# Commands: "EXTEND" -> drive to full extension and stay
+#           "RETRACT" -> drive to full retraction and stay
+# No feedback/limit switches -- purely timed. Actuator is a lead-screw
+# type so it holds position mechanically once power is cut (non-backdriving).
 
 import socket
 import Jetson.GPIO as GPIO
@@ -14,65 +17,62 @@ PORT = 5006
 IN1 = 29
 IN2 = 31
 
-# Calibration settings — update once real values are confirmed
-TIME_FOR_FULL_INCH = 1.66   # Seconds per inch of travel
-TARGET_DISTANCE = 0.8       # Target extension in inches
-HOLD_TIME = 3.0             # Seconds to hold extended position
+# Calibration -- update once real values are confirmed
+TIME_FOR_FULL_INCH = 1.66      # Seconds per inch of travel
+FULL_STROKE_INCHES = 0.8       # Actuator's full stroke length
+STROKE_RUNTIME = TIME_FOR_FULL_INCH * FULL_STROKE_INCHES
+BUFFER = 0.5                   # Extra time to guarantee reaching the hard stop
 
-# Calculate runtime for target distance
-EXTEND_RUNTIME = TIME_FOR_FULL_INCH * TARGET_DISTANCE
+# Track current commanded state so repeat commands are ignored
+current_state = None  # "EXTENDED" | "RETRACTED" | None (unknown at boot)
 
-# Initialize GPIO
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(IN1, GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(IN2, GPIO.OUT, initial=GPIO.LOW)
 
 
 def stop():
-    """Stops the actuator by setting both control pins LOW."""
     GPIO.output(IN1, GPIO.LOW)
     GPIO.output(IN2, GPIO.LOW)
 
 
-def run_actuator_cycle():
-    """
-    Runs the full timed actuator cycle:
-    1. Fully retract to reset position
-    2. Extend to target distance
-    3. Hold at target
-    4. Retract back to start
-    """
-    try:
-        # Step 1: Reset — fully retract
-        print("  Retracting to reset position...")
-        GPIO.output(IN1, GPIO.LOW)
-        GPIO.output(IN2, GPIO.HIGH)
-        time.sleep(TIME_FOR_FULL_INCH + 0.5)  # Extra buffer to ensure full retraction
-        stop()
-        time.sleep(1)
+def extend():
+    global current_state
+    if current_state == "EXTENDED":
+        print("  Already extended, ignoring.")
+        return
+    print("  Extending...")
+    GPIO.output(IN1, GPIO.HIGH)
+    GPIO.output(IN2, GPIO.LOW)
+    time.sleep(STROKE_RUNTIME + BUFFER)
+    stop()
+    current_state = "EXTENDED"
+    print("  Extended, holding (power cut).")
 
-        # Step 2: Extend to target distance
-        print(f"  Extending to {TARGET_DISTANCE} inches...")
-        GPIO.output(IN1, GPIO.HIGH)
-        GPIO.output(IN2, GPIO.LOW)
-        time.sleep(EXTEND_RUNTIME)
 
-        # Step 3: Hold at target position
-        stop()
-        print(f"  Holding for {HOLD_TIME} seconds...")
-        time.sleep(HOLD_TIME)
+def retract():
+    global current_state
+    if current_state == "RETRACTED":
+        print("  Already retracted, ignoring.")
+        return
+    print("  Retracting...")
+    GPIO.output(IN1, GPIO.LOW)
+    GPIO.output(IN2, GPIO.HIGH)
+    time.sleep(STROKE_RUNTIME + BUFFER)
+    stop()
+    current_state = "RETRACTED"
+    print("  Retracted, holding (power cut).")
 
-        # Step 4: Retract back to start
-        print("  Retracting back to start...")
-        GPIO.output(IN1, GPIO.LOW)
-        GPIO.output(IN2, GPIO.HIGH)
-        time.sleep(TIME_FOR_FULL_INCH + 0.5)
-        stop()
-        print("  Cycle complete.")
 
-    except Exception as e:
-        stop()
-        print(f"  [!] Actuator error: {e}")
+def handle_command(cmd):
+    global current_state
+    cmd = cmd.strip().upper()
+    if cmd == "EXTEND":
+        extend()
+    elif cmd == "RETRACT":
+        retract()
+    else:
+        print(f"  Unknown command: {cmd}")
 
 
 # --- Main server loop ---
@@ -83,12 +83,16 @@ server.listen(5)
 
 print(f"Actuator receiver listening on port {PORT}...")
 
-while True:
-    conn, addr = server.accept()
-    data = conn.recv(1024).decode().strip()
-    conn.close()
-    if data == "actuator":
-        print("  Actuator cycle triggered")
-        run_actuator_cycle()
-    else:
-        print(f"  [!] Unknown command: {data}")
+# Start in a known state -- force a retract at boot so current_state is accurate
+retract()
+
+try:
+    while True:
+        conn, addr = server.accept()
+        data = conn.recv(1024).decode().strip()
+        conn.close()
+        if data:
+            handle_command(data)
+except KeyboardInterrupt:
+    stop()
+    GPIO.cleanup()
