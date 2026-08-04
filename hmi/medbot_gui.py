@@ -412,21 +412,18 @@ class ElaraApp:
         # Actuator — extend and retract buttons
         actuator_status_var = tk.StringVar(value="Actuator: Unknown")
 
-        def send_extend():
-            send_platform_command("EXTEND", port=5006)
-            actuator_status_var.set("Actuator: Extended")
-
-        def send_retract():
-            send_platform_command("RETRACT", port=5006)
-            actuator_status_var.set("Actuator: Retracted")
-
-        extend_button = tk.Button(platform_frame, text="Extend", command=send_extend)
-        retract_button = tk.Button(platform_frame, text="Retract", command=send_retract)
-        actuator_status_label = tk.Label(platform_frame, textvariable=actuator_status_var)
-
-        extend_button.pack(side="left", padx=5)
-        retract_button.pack(side="left", padx=5)
-        actuator_status_label.pack(side="left", padx=10)
+        # Actuator — extend and retract buttons
+        self.actuator_status_var = tk.StringVar(value="Actuator: Unknown")
+        actuator_row = tk.Frame(btn_frame, bg='black')
+        actuator_row.pack(pady=4)
+        make_button(actuator_row, "Extend", "#1a73e8",
+                    command=self.extend_actuator,
+                    width=9, height=2, font_size=22).pack(side='left', padx=8)
+        make_button(actuator_row, "Retract", "#cc0000",
+                    command=self.retract_actuator,
+                    width=9, height=2, font_size=22).pack(side='left', padx=8)
+        tk.Label(btn_frame, textvariable=self.actuator_status_var,
+                 font=("Helvetica", 16), fg="white", bg="black").pack(pady=4)
 
         # Back button
         make_button(btn_frame, "← Back", "#555555",
@@ -453,19 +450,37 @@ class ElaraApp:
         except Exception as e:
             print(f"  [!] Platform command error: {e}")
 
-    def trigger_actuator(self):
-        """Triggers actuator cycle in background thread to prevent GUI freeze."""
-        threading.Thread(target=self._actuator_thread, daemon=True).start()
+    def extend_actuator(self):
+        """Triggers actuator extend in background thread to prevent GUI freeze."""
+        threading.Thread(target=self._actuator_extend_thread, daemon=True).start()
 
-    def _actuator_thread(self):
-        """Sends actuator trigger to Jetson port 5006."""
+    def retract_actuator(self):
+        """Triggers actuator retract in background thread to prevent GUI freeze."""
+        threading.Thread(target=self._actuator_retract_thread, daemon=True).start()
+
+    def _actuator_extend_thread(self):
+        """Sends EXTEND command to Jetson port 5006."""
         try:
             s = socket.socket()
             s.settimeout(10)
             s.connect((JETSON_IP, ACTUATOR_PORT))
-            s.send(b"actuator")
+            s.send(b"EXTEND")
             s.close()
-            print("  Actuator: cycle triggered")
+            print("  Actuator: extend sent")
+            self.actuator_status_var.set("Actuator: Extended")
+        except Exception as e:
+            print(f"  [!] Actuator error: {e}")
+
+    def _actuator_retract_thread(self):
+        """Sends RETRACT command to Jetson port 5006."""
+        try:
+            s = socket.socket()
+            s.settimeout(10)
+            s.connect((JETSON_IP, ACTUATOR_PORT))
+            s.send(b"RETRACT")
+            s.close()
+            print("  Actuator: retract sent")
+            self.actuator_status_var.set("Actuator: Retracted")
         except Exception as e:
             print(f"  [!] Actuator error: {e}")
 
