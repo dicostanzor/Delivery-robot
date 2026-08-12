@@ -34,6 +34,8 @@ JETSON_IP = '192.168.137.2'
 JETSON_PORT = 5005      # room_receiver.py
 PLATFORM_PORT = 5007    # platform_receiver.py
 ACTUATOR_PORT = 5006    # actuator_receiver.py
+LOWER_DURATION = 5
+RETRACT_WAIT = 20
 RS485_PORT = '/dev/ttyUSB0'
 RS485_BAUD = 38400
 
@@ -359,8 +361,17 @@ class ElaraApp:
         tk.Label(self.frame, text="package delivery",
                  font=("Helvetica", 30), fg="white", bg="black").pack()
         make_button(self.frame, "Package\nDelivered", "#1a73e8",
-                    command=self.show_returning_screen,
-                    width=16, height=4, font_size=30).pack(pady=40)
+                 command=self.start_dropoff_sequence,
+                 width=16, height=4, font_size=30).pack(pady=40)
+
+    def show_releasing_package_screen(self):
+        """
+        Shown immediately after "Package Delivered" is pressed, while the platform
+        lowers/tilts and the actuator retracts to release the package.
+        """
+        self.clear()
+        tk.Label(self.frame, text="Releasing Package...",
+                 font=("Helvetica", 38), fg="white", bg="black").pack(pady=80)
 
     def show_returning_screen(self):
         """
@@ -483,6 +494,44 @@ class ElaraApp:
             self.actuator_status_var.set("Actuator: Retracted")
         except Exception as e:
             print(f"  [!] Actuator error: {e}")
+
+    def start_dropoff_sequence(self):
+        """
+        Triggered by the "Package Delivered" button on the dropoff confirmation screen.
+        Lowers + tilts the platform and retracts the actuator to release the package,
+        waits RETRACT_WAIT seconds, then resets (actuator extends, platform levels).
+        Runs in a background thread so the touchscreen doesn't freeze.
+        """
+        self.show_releasing_package_screen()
+        threading.Thread(target=self._dropoff_sequence_thread, daemon=True).start()
+
+    def _dropoff_sequence_thread(self):
+        try:
+            # Lower platform (continuous move — must send stop ourselves)
+            self.platform_move("lower")
+            time.sleep(LOWER_DURATION)
+            self.platform_move("stop")
+
+            # Tilt platform (fixed-step move, self-terminating)
+            self.platform_move("tilt")
+
+            # Retract actuator
+            self._actuator_retract_thread()
+            self.actuator_status_var.set("Actuator: Retracted")
+
+            # Hold open so staff can grab the package
+            time.sleep(RETRACT_WAIT)
+
+            # Reset: actuator back out, platform level
+            self._actuator_extend_thread()
+            self.actuator_status_var.set("Actuator: Extended")
+            self.platform_move("level")
+
+        except Exception as e:
+            print(f"  [!] Dropoff sequence error: {e}")
+
+        # Screen transitions must happen on the main thread
+        self.frame.after(0, self.show_returning_screen)
 
     # -------------------------------------------------------------------------
     # Delivery Session
