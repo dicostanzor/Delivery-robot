@@ -1,0 +1,42 @@
+Yes — here's your proven 2-terminal mapping sequence, plus the reset script for a clean restart mid-session if the map comes out messy.
+
+## Terminal 1 — full sensing + mapping stack (includes RViz)
+```
+sudo ip link set can0 down && sudo ip link set can0 up type can bitrate 1000000 restart-ms 100
+source /opt/ros/humble/setup.bash && source ~/ros2_ws/install/setup.bash
+ros2 launch delivery_robot full_mapping.launch.py
+```
+
+RViz opens automatically on the Jetson's own display since it's baked into the launch file. If you're SSHed in without a monitor attached to the Jetson, you won't see it — in that case use the X11-forwarded version instead:
+
+## Terminal 2 (only if you need RViz on your Windows screen)
+```
+source /opt/ros/humble/setup.bash
+WINDOWS_IP=$(echo "$SSH_CLIENT" | awk '{print $1}')
+export DISPLAY="${WINDOWS_IP}:0.0"
+export QT_X11_NO_MITSHM=1
+export LIBGL_ALWAYS_SOFTWARE=1
+rviz2 -d /home/nvidia/ros2_ws/src/delivery_robot/config/mapping.rviz
+```
+
+## To reset the map and start over mid-session (no full restart needed)
+```
+~/reset_slam.sh
+```
+
+## To save the finished map
+```
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 run nav2_map_server map_saver_cli -f ~/facility_map_<name> --ros-args -p save_map_timeout:=10000.0
+```
+Give it a clear, descriptive name (like `facility_map_july28_cardboard`) so it doesn't collide with earlier saves.
+
+## Back it up to Windows
+From PowerShell (not inside SSH):
+```
+scp nvidia@100.66.202.98:~/facility_map_<name>.pgm "$HOME\Downloads"
+scp nvidia@100.66.202.98:~/facility_map_<name>.yaml "$HOME\Downloads"
+```
+
+Given it's a small, simple 12x12 ft rectangle this time, mapping should go quick — drive slow and steady around the perimeter, give it a moment after each turn, and you should get a clean rectangle without needing many resets.
