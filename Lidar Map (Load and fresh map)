@@ -1,0 +1,46 @@
+**Load `quick_lidar_map` first tomorrow.** You only need to create another map when you want a fresh capture. I prepared both options.
+
+| Launcher                  | What it does                                                          |
+| ------------------------- | --------------------------------------------------------------------- |
+| `load_quick_lidar_map.sh` | Loads your saved map and opens RViz. No LiDAR needed.                 |
+| `make_quick_lidar_map.sh` | Starts LiDAR and stationary mapping, saves a new map, and opens RViz. |
+
+The loader uses [Nav2 Map Server](https://github.com/ros-navigation/navigation2/blob/main/nav2_map_server/README.md); fresh mapping uses [SLAM Toolbox](https://github.com/SteveMacenski/slam_toolbox/tree/ros2).
+
+Download **[install_lidar_tools.sh](sandbox:/workspace/scratch/b6f67185a2c8/install_lidar_tools.sh)**. It contains both launchers and their supporting files. The complete source and instructions are also in [elara_lidar_tools.zip](sandbox:/workspace/scratch/b6f67185a2c8/elara_lidar_tools.zip).
+
+1. **Save the installer in your Windows Downloads folder.** In Windows PowerShell, copy it to the Jetson:
+
+   ```powershell
+   $jetsonAddress = Read-Host "Jetson IP or hostname you use for SSH"
+   scp "$env:USERPROFILE\Downloads\install_lidar_tools.sh" "nvidia@${jetsonAddress}:~/install_lidar_tools.sh"
+   ```
+
+2. **Open XLaunch using the settings that worked previously.** Connect through your usual Jetson SSH terminal, then install and load today’s saved map:
+
+   ```bash
+   bash ~/install_lidar_tools.sh
+   bash ~/lidar_tools/load_quick_lidar_map.sh
+   ```
+
+   A successful run prints `Map ready` and:
+
+   ```text
+   LOADED: /home/nvidia/maps/quick_lidar_map.yaml
+   ```
+
+   RViz opens with **Fixed Frame: map** and the Map display configured.
+
+3. **To try fresh mapping, press `Ctrl+C` first**, keep the robot completely stationary, then run:
+
+   ```bash
+   bash ~/lidar_tools/make_quick_lidar_map.sh
+   ```
+
+   It checks the scans, transforms, SLAM frame settings, and occupancy grid before saving. Wait for the **`SAVED:`** paths. New maps receive timestamped names alongside your original map.
+
+**Run one option at a time and leave its terminal open while viewing.** `Ctrl+C` stops that session’s processes.
+
+Fresh mapping takes startup and scan-processing time; it captures the visible area. **Keep the robot stationary throughout that session because it uses temporary fixed odometry.** Driving will still require real odometry and localization.
+
+The local syntax, configuration, file-protection, and process-cleanup checks passed. The live Jetson/LiDAR test remains for the morning.
