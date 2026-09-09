@@ -1,0 +1,3 @@
+source /opt/ros/humble/setup.bash
+source /home/nvidia/ros2_ws/install/setup.bash
+cd /home/nvidia/ros2_ws/src/delivery_robot && python3 unified_teleop.py
