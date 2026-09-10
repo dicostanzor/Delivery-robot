@@ -1,46 +1,91 @@
-**Load `quick_lidar_map` first tomorrow.** You only need to create another map when you want a fresh capture. I prepared both options.
+## One-time installer update
 
-| Launcher                  | What it does                                                          |
-| ------------------------- | --------------------------------------------------------------------- |
-| `load_quick_lidar_map.sh` | Loads your saved map and opens RViz. No LiDAR needed.                 |
-| `make_quick_lidar_map.sh` | Starts LiDAR and stationary mapping, saves a new map, and opens RViz. |
+Download [install_lidar_tools.sh](sandbox:/workspace/scratch/b6f67185a2c8/install_lidar_tools.sh).
 
-The loader uses [Nav2 Map Server](https://github.com/ros-navigation/navigation2/blob/main/nav2_map_server/README.md); fresh mapping uses [SLAM Toolbox](https://github.com/SteveMacenski/slam_toolbox/tree/ros2).
+In Windows PowerShell:
 
-Download **[install_lidar_tools.sh](sandbox:/workspace/scratch/b6f67185a2c8/install_lidar_tools.sh)**. It contains both launchers and their supporting files. The complete source and instructions are also in [elara_lidar_tools.zip](sandbox:/workspace/scratch/b6f67185a2c8/elara_lidar_tools.zip).
+```powershell
+scp "$env:USERPROFILE\Downloads\install_lidar_tools.sh" "nvidia@100.66.202.98:/home/nvidia/install_lidar_tools.sh"
+```
 
-1. **Save the installer in your Windows Downloads folder.** In Windows PowerShell, copy it to the Jetson:
+On the Jetson:
 
-   ```powershell
-   $jetsonAddress = Read-Host "Jetson IP or hostname you use for SSH"
-   scp "$env:USERPROFILE\Downloads\install_lidar_tools.sh" "nvidia@${jetsonAddress}:~/install_lidar_tools.sh"
-   ```
+```bash
+bash ~/install_lidar_tools.sh
+```
 
-2. **Open XLaunch using the settings that worked previously.** Connect through your usual Jetson SSH terminal, then install and load today’s saved map:
+## 1. Make and save a new map
 
-   ```bash
-   bash ~/install_lidar_tools.sh
-   bash ~/lidar_tools/load_quick_lidar_map.sh
-   ```
+First, open XLaunch on Windows. Keep the robot completely stationary.
 
-   A successful run prints `Map ready` and:
+Run:
 
-   ```text
-   LOADED: /home/nvidia/maps/quick_lidar_map.yaml
-   ```
+```bash
+bash ~/lidar_tools/make_quick_lidar_map.sh
+```
 
-   RViz opens with **Fixed Frame: map** and the Map display configured.
+This automatically:
 
-3. **To try fresh mapping, press `Ctrl+C` first**, keep the robot completely stationary, then run:
+* Starts the LiDAR
+* Publishes `/scan`
+* Runs SLAM Toolbox
+* Publishes the occupancy map on `/map`
+* Opens RViz with **Map** and **LaserScan**
+* Saves a timestamped `.yaml` and `.pgm` map under `~/maps`
 
-   ```bash
-   bash ~/lidar_tools/make_quick_lidar_map.sh
-   ```
+Wait until the terminal prints both:
 
-   It checks the scans, transforms, SLAM frame settings, and occupancy grid before saving. Wait for the **`SAVED:`** paths. New maps receive timestamped names alongside your original map.
+```text
+SAVED: /home/nvidia/maps/....yaml
+SAVED: /home/nvidia/maps/....pgm
+```
 
-**Run one option at a time and leave its terminal open while viewing.** `Ctrl+C` stops that session’s processes.
+Then press `Ctrl+C`.
 
-Fresh mapping takes startup and scan-processing time; it captures the visible area. **Keep the robot stationary throughout that session because it uses temporary fixed odometry.** Driving will still require real odometry and localization.
+To choose your own map name instead:
 
-The local syntax, configuration, file-protection, and process-cleanup checks passed. The live Jetson/LiDAR test remains for the morning.
+```bash
+# Replace NEW_MAP_NAME with your desired name.
+# Do not include .yaml or .pgm here.
+bash ~/lidar_tools/make_quick_lidar_map.sh ~/maps/NEW_MAP_NAME
+```
+
+Example:
+
+```bash
+bash ~/lidar_tools/make_quick_lidar_map.sh \
+  ~/maps/third_cardboard_lidar_map
+```
+
+Important: never drive the robot while this mapping script is running because it uses temporary fixed odometry.
+
+## 2. Load any saved map
+
+First, see all saved maps:
+
+```bash
+ls -1 ~/maps/*.yaml
+```
+
+Then load the desired map:
+
+```bash
+# Replace MAP_FILE_NAME.yaml with the exact saved map filename.
+bash ~/lidar_tools/load_quick_lidar_map.sh \
+  ~/maps/MAP_FILE_NAME.yaml
+```
+
+Example:
+
+```bash
+bash ~/lidar_tools/load_quick_lidar_map.sh \
+  ~/maps/second_cardboard_lidar_map.yaml
+```
+
+To load the original default map:
+
+```bash
+bash ~/lidar_tools/load_quick_lidar_map.sh
+```
+
+The loader publishes the saved occupancy grid on `/map` and opens it in RViz. Loading a map does not localize or move the robot. Press `Ctrl+C` before switching between making and loading maps.
