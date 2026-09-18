@@ -1,0 +1,25 @@
+1. To open RVIZ (sounds like a frog accroding to Samy):
+
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export DISPLAY="${SSH_CLIENT%% *}:0.0"
+export QT_X11_NO_MITSHM=1
+export LIBGL_ALWAYS_SOFTWARE=1
+
+ros2 launch nav2_bringup rviz_launch.py use_namespace:=false
+
+
+2. To load map and activate laocalization:
+
+
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export LD_LIBRARY_PATH="/usr/local/lib:$HOME/Phoenix5-Linux-Example/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+ros2 launch ~/delivery-robot-test/launch/navigate.launch.py \
+  map:=/home/nvidia/maps/third_cardboard_lidar_map.yaml    # remeber to change the final map file name to your map file name.
+
+3. Finally: click on 2D Pose Estimate and drag the arrow where the robot is and its direction it is oriented to. This activates NAV2.
+
